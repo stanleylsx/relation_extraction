@@ -24,8 +24,8 @@ class DataManager:
         self.max_sequence_length = 100
         self.PADDING = '[PAD]'
         self.UNKNOWN = '[UNK]'
-        self.train_file = 'data/dev_data.json'
-        self.dev_file = 'data/dev_data.json'
+        self.train_file = 'data/dev_data_mini.json'
+        self.dev_file = 'data/dev_data_mini.json'
         self.predict2id_file = 'data/vocab/predict2id'
         self.token2id_file = 'data/vocab/token2id'
         self.token2id, self.id2token, self.predict2id, self.id2predict = self.load_vocab()
@@ -131,7 +131,7 @@ class DataManager:
         return -1
 
     def prepare_bert_embedding(self, data):
-        batch_token_ids, batch_segment_ids = [], []
+        batch_token_ids, batch_attention_ids = [], []
         batch_subject_labels, batch_subject_ids, batch_object_labels = [], [], []
         for item in tqdm(data):
             token_ids = self.tokenizer.encode(item['text'])
@@ -167,30 +167,30 @@ class DataManager:
                     object_labels[o[0], o[2], 0] = 1
                     object_labels[o[1], o[2], 1] = 1
                 batch_token_ids.append(token_ids)
-                batch_segment_ids.append(segment_ids)
+                batch_attention_ids.append(segment_ids)
                 batch_subject_labels.append(subject_labels)
                 batch_subject_ids.append(subject_ids)
                 batch_object_labels.append(object_labels)
         data_token_ids = self.sequence_padding(batch_token_ids)
-        data_segment_ids = self.sequence_padding(batch_segment_ids)
+        data_attention_ids = self.sequence_padding(batch_attention_ids)
         data_subject_labels = self.sequence_padding(batch_subject_labels)
         data_subject_ids = np.array(batch_subject_ids)
         data_object_labels = self.sequence_padding(batch_object_labels)
-        return data_token_ids, data_segment_ids, data_subject_labels, data_subject_ids, data_object_labels
+        return data_token_ids, data_attention_ids, data_subject_labels, data_subject_ids, data_object_labels
 
     def get_training_set(self):
         self.logger.info('loading training datasets...')
         train_data = self.load_data(self.train_file)
-        token_ids_train, segment_ids_train, subject_labels_train, \
+        token_ids_train, attention_ids_train, subject_labels_train, \
             subject_ids_train, object_labels_train = self.prepare_bert_embedding(train_data)
         self.logger.info('loading validation datasets...')
         dev_data = self.load_data(self.dev_file)
-        token_ids_val, segment_ids_val, subject_labels_val, \
+        token_ids_val, attention_ids_val, subject_labels_val, \
             subject_ids_val, object_labels_val = self.prepare_bert_embedding(dev_data)
-        train_dataset = tf.data.Dataset.from_tensor_slices((token_ids_train, segment_ids_train,
+        train_dataset = tf.data.Dataset.from_tensor_slices((token_ids_train, attention_ids_train,
                                                             subject_labels_train, subject_ids_train,
                                                             object_labels_train))
-        val_dataset = tf.data.Dataset.from_tensor_slices((token_ids_val, segment_ids_val, subject_labels_val,
+        val_dataset = tf.data.Dataset.from_tensor_slices((token_ids_val, attention_ids_val, subject_labels_val,
                                                           subject_ids_val, object_labels_val))
         return train_dataset, val_dataset
 
