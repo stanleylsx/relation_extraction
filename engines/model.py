@@ -18,6 +18,8 @@ class ConditionalLayerNorm(tf.keras.layers.Layer):
 
         # self.weight = nn.Parameter(torch.ones(hidden_size))
         # self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.beta = self.add_weight(shape=hidden_size, initializer='zeros', name='beta')
+        self.gamma = self.add_weight(shape=hidden_size, initializer='ones', name='gamma')
         self.variance_epsilon = eps
 
         self.beta_dense = tf.keras.layers.Dense(hidden_size)
@@ -26,15 +28,14 @@ class ConditionalLayerNorm(tf.keras.layers.Layer):
     # @tf.function
     def call(self, x, cond):
         cond = tf.expand_dims(cond, 1)
-        beta = self.beta_dense(cond)
-        gamma = self.gamma_dense(cond)
-        weight = gamma
-        bias = beta
+        beta = self.beta_dense(cond) + self.beta
+        gamma = self.gamma_dense(cond) + self.gamma
 
-        u = tf.reduce_mean(x, -1, keepdims=True)
-        s = tf.reduce_mean(tf.pow((x - u), 2), -1, keepdims=True)
-        x = (x - u) / tf.sqrt(s + self.variance_epsilon)
-        return weight * x + bias
+        mean = tf.reduce_mean(x, -1, keepdims=True)
+        variance = tf.reduce_mean(tf.pow((x - mean), 2), -1, keepdims=True)
+        std = tf.sqrt(variance + self.variance_epsilon)
+        outputs = (x - mean) / std * gamma + beta
+        return outputs
 
 
 class Model(tf.keras.Model, ABC):
@@ -48,15 +49,12 @@ class Model(tf.keras.Model, ABC):
     @staticmethod
     def extract_subject(sequence_output, subject_ids):
         """
-        根据subject_ids从output中取出subject的向量表征
+        根据subject_ids从output中取出subject的首尾token的向量表征融合
         """
-        a = subject_ids[:, :1]
-        b = subject_ids[:, 1:]
-        print('asd')
-        # start = batch_gather(sequence_output, subject_ids[:, :1])
-        # end = batch_gather(sequence_output, subject_ids[:, 1:])
-        # subject = K.concatenate([start, end], 2)
-        # return subject[:, 0]
+        start = tf.gather(sequence_output, subject_ids[:, :1], batch_dims=1)
+        end = tf.gather(sequence_output, subject_ids[:, 1:], batch_dims=1)
+        subject = tf.concat([start, end], axis=1)
+        return subject
 
     # @tf.function
     def call(self, sentences, attention_mask, subject_ids):
@@ -66,6 +64,11 @@ class Model(tf.keras.Model, ABC):
         subject_predicts = self.subject_dense(layer_norm_result)
 
         subject_encode = self.extract_subject(sequence_output, subject_ids)
+        cond_layer_norm_result = self.cond_layer_norm(sequence_output, subject_encode)
+        print('asd')
+
+
+
 
 
 
