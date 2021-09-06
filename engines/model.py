@@ -6,18 +6,16 @@
 # @Software: PyCharm
 from abc import ABC
 from transformers import TFBertModel
-from tensorflow.keras.layers import LayerNormalization
 import tensorflow as tf
 
 
 class ConditionalLayerNorm(tf.keras.layers.Layer):
     def __init__(self, hidden_size, eps=1e-12):
-        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        Construct a layernorm module in the TF style (epsilon inside the square root).
         """
         super(ConditionalLayerNorm, self).__init__()
 
-        # self.weight = nn.Parameter(torch.ones(hidden_size))
-        # self.bias = nn.Parameter(torch.zeros(hidden_size))
         self.beta = self.add_weight(shape=hidden_size, initializer='zeros', name='beta')
         self.gamma = self.add_weight(shape=hidden_size, initializer='ones', name='gamma')
         self.variance_epsilon = eps
@@ -25,7 +23,7 @@ class ConditionalLayerNorm(tf.keras.layers.Layer):
         self.beta_dense = tf.keras.layers.Dense(hidden_size)
         self.gamma_dense = tf.keras.layers.Dense(hidden_size)
 
-    # @tf.function
+    @tf.function
     def call(self, x, cond):
         cond = tf.expand_dims(cond, 1)
         beta = self.beta_dense(cond) + self.beta
@@ -39,12 +37,14 @@ class ConditionalLayerNorm(tf.keras.layers.Layer):
 
 
 class Model(tf.keras.Model, ABC):
-    def __init__(self):
+    def __init__(self, predict_label_nums):
         super().__init__()
         self.bert_model = TFBertModel.from_pretrained('bert-base-chinese')
         self.layer_norm = tf.keras.layers.LayerNormalization()
         self.subject_dense = tf.keras.layers.Dense(units=2, activation='sigmoid')
         self.cond_layer_norm = ConditionalLayerNorm(768)
+        self.predict_label_nums = predict_label_nums
+        self.op_dense = tf.keras.layers.Dense(units=2 * predict_label_nums, activation='sigmoid')
 
     @staticmethod
     def extract_subject(sequence_output, subject_ids):
@@ -53,7 +53,8 @@ class Model(tf.keras.Model, ABC):
         """
         start = tf.gather(sequence_output, subject_ids[:, :1], batch_dims=1)
         end = tf.gather(sequence_output, subject_ids[:, 1:], batch_dims=1)
-        subject = tf.concat([start, end], axis=1)
+        subject = tf.concat([start, end], axis=2)
+        subject = subject[:, 0]
         return subject
 
     # @tf.function
@@ -65,7 +66,11 @@ class Model(tf.keras.Model, ABC):
 
         subject_encode = self.extract_subject(sequence_output, subject_ids)
         cond_layer_norm_result = self.cond_layer_norm(sequence_output, subject_encode)
+        predict_output = self.op_dense(cond_layer_norm_result)
+        predict_output = tf.reshape((-1, -1, self.predict_label_nums, 2), predict_output)
         print('asd')
+
+
 
 
 

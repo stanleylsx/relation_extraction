@@ -29,6 +29,7 @@ class DataManager:
         self.predict2id_file = 'data/vocab/predict2id'
         self.token2id_file = 'data/vocab/token2id'
         self.token2id, self.id2token, self.predict2id, self.id2predict = self.load_vocab()
+        self.predict_label_nums = len(self.predict2id)
 
     @staticmethod
     def load_data(file):

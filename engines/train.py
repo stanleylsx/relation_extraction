@@ -14,7 +14,8 @@ def train(data_manager, logger):
     train_dataset, val_dataset = data_manager.get_training_set()
     batch_size = 5
     epoch = 10
-    relation_model = Model()
+    predict_label_nums = data_manager.predict_label_nums
+    relation_model = Model(predict_label_nums)
     for i in range(epoch):
         start_time = time.time()
         logger.info('epoch:{}/{}'.format(i + 1, epoch))
