@@ -57,18 +57,18 @@ class Model(tf.keras.Model, ABC):
         subject = subject[:, 0]
         return subject
 
-    # @tf.function
+    @tf.function
     def call(self, sentences, attention_mask, subject_ids):
         bert_hidden_states = self.bert_model(sentences, attention_mask=attention_mask)
         sequence_output = bert_hidden_states[0]
         layer_norm_result = self.layer_norm(sequence_output)
         subject_predicts = self.subject_dense(layer_norm_result)
-
         subject_encode = self.extract_subject(sequence_output, subject_ids)
         cond_layer_norm_result = self.cond_layer_norm(sequence_output, subject_encode)
         predict_output = self.op_dense(cond_layer_norm_result)
-        predict_output = tf.reshape((-1, -1, self.predict_label_nums, 2), predict_output)
-        print('asd')
+        batch_size = sentences.shape[0]
+        predict_output = tf.reshape(predict_output, (batch_size, -1, self.predict_label_nums, 2))
+        return subject_predicts, predict_output
 
 
 
