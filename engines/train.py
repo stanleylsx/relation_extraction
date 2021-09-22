@@ -9,6 +9,7 @@ import time
 from engines.model import Model
 from transformers import AdamW
 from tqdm import tqdm
+from predict import evaluate
 
 
 def train(data_manager, logger):
@@ -18,8 +19,9 @@ def train(data_manager, logger):
     learning_rate = 5e-5
     predict_label_nums = data_manager.predict_label_nums
     relation_model = Model(predict_label_nums)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    optimizer = AdamW(learning_rate=learning_rate)
 
+    very_start_time = time.time()
     for i in range(epoch):
         start_time = time.time()
         logger.info('epoch:{}/{}'.format(i + 1, epoch))
@@ -35,9 +37,22 @@ def train(data_manager, logger):
                 object_loss = tf.reduce_mean(object_loss)
                 total_loss = subject_loss + object_loss
                 # 定义好参加梯度的参数
-                gradients = tape.gradient(total_loss, relation_model.trainable_variables)
+                variables = relation_model.trainable_variables
+                # 将Bert里面的pooler层的参数去掉
+                variables = [var for var in variables if 'pooler' not in var.name]
+                # 定义好参加梯度的参数
+                gradients = tape.gradient(total_loss, variables)
                 # 反向传播，自动微分计算
-                optimizer.apply_gradients(zip(gradients, relation_model.trainable_variables))
+                optimizer.apply_gradients(zip(gradients, variables))
+        logger.info('start evaluate engines...')
+        for step, batch in tqdm(val_dataset.shuffle(len(val_dataset)).batch(batch_size).enumerate()):
+            token_ids_val, attention_ids_val, subject_labels_val, subject_ids_val, object_labels_val = batch
+            attention_ids_val = tf.cast(attention_ids_val, dtype=tf.double)
+            subject_predicts, predict_output = relation_model(token_ids_val, attention_ids_val, subject_ids_val)
+
+        time_span = (time.time() - start_time) / 60
+
+
 
 
 
