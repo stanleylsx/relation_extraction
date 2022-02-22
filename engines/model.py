@@ -69,21 +69,3 @@ class Model(tf.keras.Model, ABC):
         batch_size = sentences.shape[0]
         predict_output = tf.reshape(predict_output, (batch_size, -1, self.predict_label_nums, 2))
         return subject_predicts, predict_output
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
